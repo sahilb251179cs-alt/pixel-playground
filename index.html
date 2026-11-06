@@ -4,22 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#08090d">
-  <title>JUDAS: Night Shift</title>
+  <title>NO VACANCY: Grand Arcadia</title>
   <link rel="stylesheet" href="style.css">
   <script src="game.js" defer></script>
 </head>
 <body>
   <main class="game-shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">J</span><div><p class="eyebrow">ST. AGNES MEMORIAL · 12:07 AM</p><h1>JUDAS <span>/ NIGHT SHIFT</span></h1></div></div>
+      <div class="brand"><span class="brand-mark">A</span><div><p class="eyebrow">GRAND ARCADIA HOTEL · 12:07 AM</p><h1>NO VACANCY <span>/ NIGHT SHIFT</span></h1></div></div>
       <p class="tagline">THE BUILDING IS LISTENING</p>
     </header>
-    <section class="game-frame" aria-label="JUDAS: Night Shift horror game">
-      <canvas id="game" width="960" height="600" aria-label="First person hospital game"></canvas>
+    <section class="game-frame" aria-label="No Vacancy: Grand Arcadia horror game">
+      <canvas id="game" width="960" height="600" aria-label="Third person hotel horror game"></canvas>
       <div class="film-grain" aria-hidden="true"></div>
       <div class="hud" id="hud" hidden>
         <div class="hud-left">
-          <div class="objective-card"><span class="hud-label">OBJECTIVE</span><strong id="objective">Find the eight ward keys</strong><span id="clue-status" class="small-status">Records found 0 / 4</span></div>
+          <div class="objective-card"><span class="hud-label">OBJECTIVE</span><strong id="objective">Find five room keys</strong><span id="clue-status" class="small-status">Records found 0 / 4</span></div>
           <div class="key-list" id="keys" aria-label="Keys found"></div>
         </div>
         <div class="hud-right">
@@ -33,11 +33,11 @@
       </div>
       <div class="overlay" id="overlay">
         <div class="title-card" id="title-card">
-          <p class="eyebrow">A FIRST-PERSON SURVIVAL HORROR PROTOTYPE</p>
-          <h2>THE NIGHT<br><em>WARD</em></h2>
-          <p class="intro">Midnight. No power. One dying flashlight.<br>Something is moving in the dark.</p>
-          <div class="briefing"><span>01 / FIND EIGHT KEYS</span><span>02 / LEARN THE CODE</span><span>03 / GET OUT ALIVE</span></div>
-          <button id="start" class="primary-button">ENTER THE HOSPITAL <b>→</b></button>
+          <p class="eyebrow">A THIRD-PERSON SURVIVAL HORROR PROTOTYPE</p>
+          <h2>NO<br><em>VACANCY</em></h2>
+          <p class="intro">Midnight at the Grand Arcadia.<br>Every room is empty. Something is checking them.</p>
+          <div class="briefing"><span>01 / FIND FIVE KEYS</span><span>02 / FIND THE ROOM CODE</span><span>03 / REACH THE LOBBY EXIT</span></div>
+          <button id="start" class="primary-button">CHECK IN <b>→</b></button>
           <p class="controls-copy">WASD move <i>·</i> Mouse / drag look <i>·</i> E interact <i>·</i> F flashlight <i>·</i> Shift run <i>·</i> C crouch</p>
         </div>
         <div class="end-card" id="end-card" hidden><p class="eyebrow" id="end-kicker">CASE FILE CLOSED</p><h2 id="end-title"></h2><p id="end-copy"></p><button id="restart" class="primary-button">TRY AGAIN <b>↻</b></button></div>
@@ -48,7 +48,7 @@
       <div class="touch-actions"><button id="touch-crouch" aria-label="Crouch">CROUCH</button><button id="touch-flash" aria-label="Toggle flashlight">LIGHT</button><button id="touch-use" class="use-button" aria-label="Interact">USE</button><button id="touch-run" aria-label="Run">RUN</button></div>
       <small class="swipe-hint">DRAG RIGHT SIDE TO LOOK</small>
     </section>
-    <footer><span>JUDAS <i>•</i> ALPHA 0.1</span><span>FIND THE TRUTH. FIND THE EXIT.</span></footer>
+    <footer><span>GRAND ARCADIA <i>•</i> NIGHT SHIFT</span><span>FIND THE KEYS. FIND THE WAY OUT.</span></footer>
   </main>
 </body>
 </html>

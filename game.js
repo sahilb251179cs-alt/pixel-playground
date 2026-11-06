@@ -1,6 +1,6 @@
 "use strict";
 
-// JUDAS: Night Shift — a small, asset-free first-person horror prototype.
+// NO VACANCY — a large, asset-free hotel horror prototype.
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d", { alpha: false });
 const W = canvas.width, H = canvas.height, FOV = Math.PI / 2.65;
@@ -8,23 +8,23 @@ const overlay = document.querySelector("#overlay"), hud = document.querySelector
 const startButton = document.querySelector("#start"), restartButton = document.querySelector("#restart");
 const endCard = document.querySelector("#end-card"), titleCard = document.querySelector("#title-card");
 const player = { x: 1.5, y: 1.5, angle: 0, crouching: false };
+const camera = { x: player.x, y: player.y, angle: player.angle };
 const keysDown = new Set(), touch = { forward: 0, side: 0, look: 0 };
 const map = buildMap();
 const items = [
-  { id: "key-a", kind: "key", x: 3.5, y: 3.5 }, { id: "key-b", kind: "key", x: 7.5, y: 7.5 },
-  { id: "key-c", kind: "key", x: 11.5, y: 3.5 }, { id: "key-d", kind: "key", x: 15.5, y: 11.5 },
-  { id: "key-e", kind: "key", x: 19.5, y: 7.5 }, { id: "key-f", kind: "key", x: 11.5, y: 11.5 },
-  { id: "key-g", kind: "key", x: 7.5, y: 11.5 }, { id: "key-h", kind: "key", x: 19.5, y: 5.5 },
-  { id: "file-1", kind: "file", x: 7.5, y: 3.5, title: "PATIENT 04 — INTAKE", text: "They brought him in after the east wing fire. He kept asking for his daughter. There is no daughter listed in his file." },
-  { id: "file-2", kind: "file", x: 15.5, y: 3.5, title: "NURSE'S REPORT — 11/02", text: "The night staff say the intercom calls their names from rooms that have been sealed for years. Administration says the wiring is dead." },
-  { id: "file-3", kind: "file", x: 3.5, y: 11.5, title: "PERSONAL NOTE — DR. VALE", text: "I did not turn off the lights. I locked Ward C. The four digits are the date we opened the ward: 0312. Please do not let them reopen it." },
-  { id: "file-4", kind: "file", x: 19.5, y: 11.5, title: "INCIDENT REPORT — REDACTED", text: "No fire was recorded on November 2. No patients were admitted to Ward C. The night staff were dismissed the following morning. The basement tapes were removed." },
-  { id: "battery-1", kind: "battery", x: 11.5, y: 7.5 }, { id: "battery-2", kind: "battery", x: 3.5, y: 7.5 },
-  { id: "battery-3", kind: "battery", x: 19.5, y: 3.5 },
-  { id: "breaker", kind: "breaker", x: 19.5, y: 13.5 }
+  { id: "key-a", kind: "key", x: 4.5, y: 4.5 }, { id: "key-b", kind: "key", x: 16.5, y: 10.5 },
+  { id: "key-c", kind: "key", x: 34.5, y: 22.5 }, { id: "key-d", kind: "key", x: 10.5, y: 34.5 },
+  { id: "key-e", kind: "key", x: 39.5, y: 39.5 },
+  { id: "file-1", kind: "file", x: 10.5, y: 4.5, title: "GUEST REGISTER — ROOM 108", text: "A family checked in at 11:48 PM. The clerk remembers four people. The register has five names, and one is written in a different hand." },
+  { id: "file-2", kind: "file", x: 22.5, y: 10.5, title: "NIGHT CLERK'S LOG", text: "The service lift opened on its own at 12:03. It arrived full of wet luggage. No guest claimed it. The lift has been disconnected since 1987." },
+  { id: "file-3", kind: "file", x: 28.5, y: 28.5, title: "ROOM 312 — HOUSEKEEPING NOTE", text: "Do not use the room number as the door code. The code is the date the Grand Arcadia first opened: 0312. I heard someone answer from inside the walls." },
+  { id: "file-4", kind: "file", x: 4.5, y: 34.5, title: "UNCLAIMED BAGGAGE TAG", text: "The hotel was evacuated before the midnight fire. The guest list was sealed by the owners. On the back: 'If the lobby clock strikes thirteen, do not take the lift.'" },
+  { id: "battery-1", kind: "battery", x: 16.5, y: 22.5 }, { id: "battery-2", kind: "battery", x: 34.5, y: 10.5 },
+  { id: "battery-3", kind: "battery", x: 4.5, y: 22.5 },
+  { id: "breaker", kind: "breaker", x: 39.5, y: 33.5 }
 ];
-const exit = { x: 21.5, y: 15.5 };
-const monster = { x: 21.5, y: 1.5, angle: Math.PI, state: "patrol", path: [], repath: 0, search: 0, wander: null };
+const exit = { x: 41.5, y: 41.5 };
+const monster = { x: 41.5, y: 1.5, angle: Math.PI, state: "patrol", path: [], repath: 0, search: 0, wander: null };
 const depthBuffer = new Float32Array(W);
 const game = { running: false, caught: false, battery: 100, light: true, keys: new Set(), files: new Set(), breaker: false,
   code: "0312", time: 0, noiseUntil: 0, noisePos: null, footTimer: 0, eventTimer: 12, flicker: 0, toastTimer: 0, prompt: "", nearItem: null, keypad: false, hudTimer: 0, last: 0 };
@@ -32,27 +32,29 @@ const $ = selector => document.querySelector(selector);
 const held = (...names) => names.some(name => keysDown.has(name));
 
 function buildMap() {
-  const width = 23, height = 17, grid = Array.from({ length: height }, () => Array(width).fill("#"));
-  for (const y of [1, 5, 9, 13, 15]) for (let x = 1; x <= 21; x++) grid[y][x] = ".";
-  for (const x of [1, 5, 9, 13, 17, 21]) for (let y = 1; y <= 15; y++) grid[y][x] = ".";
-  // Small ward rooms sit between the long corridor spines.
-  for (const top of [2, 6, 10]) for (const left of [2, 6, 10, 14, 18]) {
-    for (let y = top; y < top + 3; y++) for (let x = left; x < left + 3; x++) grid[y][x] = ".";
-    grid[top][left + 1] = "."; grid[top + 2][left + 1] = ".";
-    grid[top + 1][left] = "."; grid[top + 1][left + 2] = ".";
+  const width = 43, height = 43, grid = Array.from({ length: height }, () => Array(width).fill("#"));
+  const spines = [1, 7, 13, 19, 25, 31, 37, 41];
+  for (const y of spines) for (let x = 1; x <= 41; x++) grid[y][x] = ".";
+  for (const x of spines) for (let y = 1; y <= 41; y++) grid[y][x] = ".";
+  // Forty-nine separate guest rooms open onto a looping corridor network.
+  for (const top of [2, 8, 14, 20, 26, 32, 38]) for (const left of [2, 8, 14, 20, 26, 32, 38]) {
+    const right = Math.min(left + 4, 40), bottom = Math.min(top + 4, 40);
+    const cx = Math.floor((left + right) / 2), cy = Math.floor((top + bottom) / 2);
+    for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) grid[y][x] = (x === left || x === right || y === top || y === bottom) ? "#" : ".";
+    // One doorway on each side; the rooms remain connected to the hotel halls.
+    grid[top][cx] = "."; grid[bottom][cx] = "."; grid[cy][left] = "."; grid[cy][right] = ".";
+    // Interior props make rooms distinct and provide cover from the creature.
+    if (right - left >= 4 && bottom - top >= 4) grid[top + 2][left + 1] = ["C", "S", "T", "P"][(left + top) % 4];
   }
-  // A records room and the basement approach make two quiet side branches.
-  for (let x = 2; x <= 4; x++) grid[14][x] = ".";
-  grid[14][3] = ".";
-  // Fallen cabinets and collapsed walls break long sightlines. The ward loops
-  // still connect around them, so both the player and creature can navigate.
-  for (const [x, y] of [[3,1],[7,5],[11,9],[15,13],[19,15],[3,9],[7,13],[11,5],[15,9],[19,1]]) grid[y][x] = "#";
+  // A broad central lobby with a reception desk, luggage carts and seating.
+  for (let y = 17; y <= 25; y++) for (let x = 17; x <= 25; x++) grid[y][x] = ".";
+  grid[20][19] = "C"; grid[21][20] = "S"; grid[20][24] = "T"; grid[23][23] = "P";
   return grid;
 }
 
 function isWall(x, y) {
   const ix = Math.floor(x), iy = Math.floor(y);
-  return iy < 0 || iy >= map.length || ix < 0 || ix >= map[0].length || map[iy][ix] === "#";
+  return iy < 0 || iy >= map.length || ix < 0 || ix >= map[0].length || map[iy][ix] !== ".";
 }
 function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function angleDelta(a, b) { return Math.atan2(Math.sin(a - b), Math.cos(a - b)); }
@@ -66,41 +68,41 @@ function showToast(message, duration = 2.4) {
 }
 function updateHud() {
   $("#clue-status").textContent = `Records found ${game.files.size} / 4`;
-  $("#keys").innerHTML = Array.from({ length: 8 }, (_, i) => `<span class="key-token ${game.keys.size > i ? "found" : ""}">${game.keys.size > i ? "✦" : "·"}</span>`).join("");
+  $("#keys").innerHTML = Array.from({ length: 5 }, (_, i) => `<span class="key-token ${game.keys.size > i ? "found" : ""}">${game.keys.size > i ? "✦" : "·"}</span>`).join("");
   const bar = $("#battery-bar"); bar.style.width = `${game.battery}%`; bar.classList.toggle("low", game.battery < 25);
   $("#battery-text").textContent = `${Math.ceil(game.battery)}%`;
   $("#noise-text").textContent = game.time < game.noiseUntil ? (game.playerRunning ? "LOUD" : "SOUND HEARD") : "QUIET";
   $("#noise-indicator").classList.toggle("loud", game.time < game.noiseUntil);
-  const objective = game.keys.size < 8 ? "Find the eight ward keys" : game.files.size < 4 ? "Find the exit — uncover the truth" : "Reach the exit. Decide what leaves with you.";
+  const objective = game.keys.size < 5 ? "Find five room keys" : game.files.size < 4 ? "Find the lobby exit — uncover the truth" : "Reach the lobby exit. Decide what leaves with you.";
   $("#objective").textContent = objective;
 }
 function startGame() {
   game.running = true; game.caught = false; game.battery = 100; game.light = true; game.keys.clear(); game.files.clear();
   game.breaker = false; game.time = 0; game.noiseUntil = 0; game.noisePos = null; game.footTimer = 0; game.eventTimer = 9 + Math.random() * 8;
   game.flicker = 0; game.keypad = false; game.last = performance.now(); player.x = 1.5; player.y = 1.5; player.angle = 0; player.crouching = false;
-  monster.x = 21.5; monster.y = 1.5; monster.angle = Math.PI; monster.state = "patrol"; monster.path = []; monster.repath = 0; monster.search = 0; monster.wander = null;
+  monster.x = 41.5; monster.y = 1.5; monster.angle = Math.PI; monster.state = "patrol"; monster.path = []; monster.repath = 0; monster.search = 0; monster.wander = null;
   keysDown.clear(); titleCard.hidden = true; endCard.hidden = true; overlay.hidden = true; hud.hidden = false; updateHud(); canvas.focus();
   try { if (audioContext?.state === "suspended") audioContext.resume(); } catch { /* Audio is optional. */ }
 }
 function finish(kind) {
   game.running = false; document.exitPointerLock?.(); overlay.hidden = false; hud.hidden = true;
   const endings = {
-    caught: ["SIGNAL LOST", "IT FOUND YOU", "The halls go quiet. At dawn, the hospital doors are still locked."],
-    survivor: ["SURVIVOR ENDING", "YOU MADE IT OUT", "You escaped with the keys. Behind you, the hospital swallowed the answers."],
-    truth: ["THE TRUTH ENDING", "THEY WERE NEVER PATIENTS", "You carried every record into the rain. By sunrise, the story was everywhere."],
-    hidden: ["HIDDEN ENDING", "THE LAST TRANSMISSION", "You restored the emergency transmitter. A voice answered from inside Ward C."],
-    trapped: ["THE DOORS ARE LOCKED", "EIGHT KEYS REQUIRED", "Find every ward key before trying the service exit."]
+    caught: ["SIGNAL LOST", "IT FOUND YOU", "The hotel goes quiet. At dawn, the lobby doors are still locked."],
+    survivor: ["SURVIVOR ENDING", "YOU MADE IT OUT", "You escaped with the keys. Behind you, the Grand Arcadia swallowed its secrets."],
+    truth: ["THE TRUTH ENDING", "THE GUEST LIST WAS REAL", "You carried every record into the rain. By sunrise, the story was everywhere."],
+    hidden: ["HIDDEN ENDING", "THE LAST CHECK-IN", "You restored the lobby transmitter. A voice answered from inside Room 312."],
+    trapped: ["THE LOBBY IS LOCKED", "FIVE ROOM KEYS REQUIRED", "Find every room key before trying the front doors."]
   };
   const ending = endings[kind]; $("#end-kicker").textContent = ending[0]; $("#end-title").textContent = ending[1]; $("#end-copy").textContent = ending[2];
   titleCard.hidden = true; endCard.hidden = false; restartButton.focus();
 }
 function setNoise(x = player.x, y = player.y, length = 2.2) { game.noisePos = { x, y }; game.noiseUntil = game.time + length; }
 
-// Grid pathfinding lets the creature navigate the ward without external AI services.
+// Grid pathfinding lets the creature navigate the hotel without external AI services.
 function findPath(sx, sy, tx, ty) {
   const start = [Math.floor(sx), Math.floor(sy)], goal = [Math.floor(tx), Math.floor(ty)];
   const queue = [start], seen = new Map([[`${start[0]},${start[1]}`, null]]); let found = false;
-  for (let cursor = 0; cursor < queue.length && cursor < 1200; cursor++) {
+  for (let cursor = 0; cursor < queue.length && cursor < 3000; cursor++) {
     const [x, y] = queue[cursor]; if (x === goal[0] && y === goal[1]) { found = true; break; }
     for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
       const nx = x + dx, ny = y + dy, k = `${nx},${ny}`;
@@ -124,7 +126,7 @@ function moveMonster(dt) {
   monster.repath -= dt;
   if (monster.state === "search") { monster.search -= dt; if (monster.search <= 0) { monster.state = "patrol"; monster.path = []; } }
   if (monster.state === "patrol" && (!monster.path.length || monster.repath <= 0)) {
-    const patrolPoints = [{x:21.5,y:1.5},{x:17.5,y:3.5},{x:13.5,y:5.5},{x:9.5,y:9.5},{x:17.5,y:13.5},{x:5.5,y:9.5}];
+    const patrolPoints = [{x:41.5,y:1.5},{x:37.5,y:10.5},{x:25.5,y:7.5},{x:19.5,y:19.5},{x:7.5,y:25.5},{x:31.5,y:31.5},{x:13.5,y:37.5}];
     const target = patrolPoints[Math.floor(Math.random() * patrolPoints.length)]; monster.path = findPath(monster.x, monster.y, target.x, target.y); monster.repath = 5 + Math.random() * 4;
   } else if (["chase", "investigate"].includes(monster.state) && monster.repath <= 0) {
     const target = monster.state === "chase" ? player : monster.wander;
@@ -140,50 +142,57 @@ function moveMonster(dt) {
 }
 
 function castRay(angle) {
-  const rx = Math.cos(angle), ry = Math.sin(angle), mx = Math.floor(player.x), my = Math.floor(player.y);
+  const rx = Math.cos(angle), ry = Math.sin(angle), mx = Math.floor(camera.x), my = Math.floor(camera.y);
   const ddx = Math.abs(1 / (rx || 1e-9)), ddy = Math.abs(1 / (ry || 1e-9));
   const stepx = rx < 0 ? -1 : 1, stepy = ry < 0 ? -1 : 1;
-  let sx = (rx < 0 ? player.x - mx : mx + 1 - player.x) * ddx;
-  let sy = (ry < 0 ? player.y - my : my + 1 - player.y) * ddy, x = mx, y = my, side = 0, count = 0;
-  while (count++ < 48) {
+  let sx = (rx < 0 ? camera.x - mx : mx + 1 - camera.x) * ddx;
+  let sy = (ry < 0 ? camera.y - my : my + 1 - camera.y) * ddy, x = mx, y = my, side = 0, count = 0;
+  while (count++ < 100) {
     if (sx < sy) { sx += ddx; x += stepx; side = 0; } else { sy += ddy; y += stepy; side = 1; }
-    if (y < 0 || y >= map.length || x < 0 || x >= map[0].length || map[y][x] === "#") break;
+    if (y < 0 || y >= map.length || x < 0 || x >= map[0].length || map[y][x] !== ".") break;
   }
   let distance = side === 0 ? sx - ddx : sy - ddy;
-  distance = Math.max(.06, distance * Math.cos(angle - player.angle));
-  return { distance, side, x, y, rx, ry };
+  distance = Math.max(.06, distance * Math.cos(angle - camera.angle));
+  return { distance, side, x, y, rx, ry, tile: map[y]?.[x] || "#" };
 }
 function wallColor(hit, rayAngle) {
-  const d = hit.distance, side = hit.side ? .73 : 1, beam = Math.abs(angleDelta(rayAngle, player.angle));
+  const d = hit.distance, side = hit.side ? .73 : 1, beam = Math.abs(angleDelta(rayAngle, camera.angle));
   const lit = game.light && game.battery > 0 && game.flicker <= 0 && beam < .62;
   let light = lit ? Math.max(.12, 1 - d * .085) : Math.max(.035, .18 - d * .012);
   const hash = (hit.x * 17 + hit.y * 31) % 7 === 0 ? .78 : 1;
   light *= side * hash;
-  const damp = 1 - Math.min(.62, d * .035), r = (lit ? 119 : 37) * light * damp, g = (lit ? 101 : 39) * light * damp, b = (lit ? 76 : 44) * light * damp;
+  const palette = { "#": lit ? [117,77,63] : [34,28,30], C: lit ? [119,77,49] : [38,28,24], S: lit ? [78,88,76] : [24,33,29], T: lit ? [113,103,81] : [34,33,31], P: lit ? [111,79,66] : [33,28,29] }[hit.tile] || [92,72,58];
+  const damp = 1 - Math.min(.62, d * .035), r = palette[0] * light * damp, g = palette[1] * light * damp, b = palette[2] * light * damp;
   return `rgb(${r|0},${g|0},${b|0})`;
 }
 function renderWorld() {
+  camera.angle = player.angle;
+  for (const follow of [1.15, .85, .55, .3, 0]) {
+    const x = player.x - Math.cos(player.angle) * follow, y = player.y - Math.sin(player.angle) * follow;
+    if (!isWall(x, y)) { camera.x = x; camera.y = y; break; }
+  }
   const horizon = player.crouching ? H * .55 : H * .5;
-  const ceiling = ctx.createLinearGradient(0, 0, 0, horizon); ceiling.addColorStop(0,"#090a0d"); ceiling.addColorStop(1,"#27221e"); ctx.fillStyle = ceiling; ctx.fillRect(0,0,W,horizon);
-  const floor = ctx.createLinearGradient(0, horizon, 0, H); floor.addColorStop(0,"#25221f"); floor.addColorStop(1,"#08090c"); ctx.fillStyle = floor; ctx.fillRect(0,horizon,W,H-horizon);
+  const ceiling = ctx.createLinearGradient(0, 0, 0, horizon); ceiling.addColorStop(0,"#09090b"); ceiling.addColorStop(1,"#33251f"); ctx.fillStyle = ceiling; ctx.fillRect(0,0,W,horizon);
+  const floor = ctx.createLinearGradient(0, horizon, 0, H); floor.addColorStop(0,"#37312c"); floor.addColorStop(1,"#100e0e"); ctx.fillStyle = floor; ctx.fillRect(0,horizon,W,H-horizon);
   const stripe = 2;
   for (let x = 0; x < W; x += stripe) {
-    const cameraX = 2 * x / W - 1, angle = player.angle + Math.atan(cameraX * Math.tan(FOV / 2)), hit = castRay(angle), wallHeight = Math.min(H * 1.8, H / hit.distance), top = horizon - wallHeight / 2;
+    const cameraX = 2 * x / W - 1, angle = camera.angle + Math.atan(cameraX * Math.tan(FOV / 2)), hit = castRay(angle), prop = hit.tile !== "#", propHeight = { C:.78, S:.57, T:.7, P:.86 }[hit.tile] || 1;
+    const wallHeight = Math.min(H * 1.8, H * propHeight / hit.distance), top = prop ? horizon - wallHeight * (propHeight - .5) / propHeight : horizon - wallHeight / 2;
     ctx.fillStyle = wallColor(hit, angle); ctx.fillRect(x, Math.max(0, top), stripe + 1, Math.min(H - top, wallHeight));
-    // Door seams and chipped plaster add a little depth without imported textures.
-    const seam = Math.abs(((hit.side ? player.y + hit.distance * hit.ry : player.x + hit.distance * hit.rx) % 1) - .5);
-    if (seam > .475 && hit.distance < 8) { ctx.fillStyle = "#171515"; ctx.fillRect(x, Math.max(0, top), 1, wallHeight); }
+    const seam = Math.abs(((hit.side ? camera.y + hit.distance * hit.ry : camera.x + hit.distance * hit.rx) % 1) - .5);
+    if (hit.tile === "#" && seam > .475 && hit.distance < 10) { ctx.fillStyle = "#171515"; ctx.fillRect(x, Math.max(0, top), 1, wallHeight); }
     depthBuffer[x] = hit.distance; depthBuffer[x + 1] = hit.distance;
   }
   drawSprites(horizon);
+  drawAvatar();
   const vignette = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.18,W/2,H/2,H*.78); vignette.addColorStop(0,"#0000"); vignette.addColorStop(.66,"#05060922"); vignette.addColorStop(1,"#020306de"); ctx.fillStyle = vignette; ctx.fillRect(0,0,W,H);
   if (!game.light || game.battery <= 0 || game.flicker > 0) { ctx.fillStyle = "#03040744"; ctx.fillRect(0,0,W,H); }
 }
 function drawSprites(horizon) {
   const list = items.filter(item => !item.taken).map(item => ({ ...item, sprite: true }));
   list.push({ id:"exit",kind:"exit",...exit,sprite:true },{ id:"monster",kind:"monster",x:monster.x,y:monster.y,sprite:true });
-  const cos = Math.cos(player.angle), sin = Math.sin(player.angle), focal = W / (2 * Math.tan(FOV/2));
-  list.map(item => { const dx=item.x-player.x,dy=item.y-player.y; return { ...item, depth:dx*cos+dy*sin, side:-dx*sin+dy*cos }; }).filter(item=>item.depth>.14).sort((a,b)=>b.depth-a.depth).forEach(item=>{
+  const cos = Math.cos(camera.angle), sin = Math.sin(camera.angle), focal = W / (2 * Math.tan(FOV/2));
+  list.map(item => { const dx=item.x-camera.x,dy=item.y-camera.y; return { ...item, depth:dx*cos+dy*sin, side:-dx*sin+dy*cos }; }).filter(item=>item.depth>.14).sort((a,b)=>b.depth-a.depth).forEach(item=>{
     const sx=W/2+item.side*focal/item.depth, size=Math.min(H*1.7,H/item.depth*.74), sy=horizon-size*.42, ix=Math.max(0,Math.min(W-1,Math.round(sx)));
     if(item.depth>depthBuffer[ix])return;
     const visible = game.light && game.battery>0 && Math.abs(Math.atan2(item.side,item.depth))<.72;
@@ -211,6 +220,24 @@ function drawSprites(horizon) {
   });
 }
 
+function drawAvatar() {
+  const bob = game.running ? Math.sin(game.time * (game.playerRunning ? 13 : 5)) * (game.playerRunning ? 4 : 1.5) : 0;
+  const base = H + 25 + (player.crouching ? 26 : 0) + bob;
+  ctx.save(); ctx.translate(W / 2 + Math.sin(game.time * 2) * (game.playerRunning ? 3 : 1), base);
+  // Soft shadow and shoulders keep the player's back visible in the chase view.
+  ctx.fillStyle = "#020203aa"; ctx.beginPath(); ctx.ellipse(0, -7, 85, 18, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#17191d"; ctx.beginPath(); ctx.ellipse(0, -157, 23, 29, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#201b18"; ctx.beginPath(); ctx.arc(0, -166, 24, Math.PI, Math.PI * 2); ctx.lineTo(23, -151); ctx.lineTo(-23, -151); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#9c795f"; ctx.fillRect(-9, -137, 18, 20);
+  ctx.fillStyle = "#282a2e"; ctx.beginPath(); ctx.moveTo(-16,-130);ctx.lineTo(-51,-118);ctx.lineTo(-72,-87);ctx.lineTo(-65,-35);ctx.lineTo(-49,-17);ctx.lineTo(49,-17);ctx.lineTo(65,-35);ctx.lineTo(72,-87);ctx.lineTo(51,-118);ctx.lineTo(16,-130);ctx.closePath();ctx.fill();
+  ctx.strokeStyle="#414044";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-15,-125);ctx.lineTo(-7,-109);ctx.lineTo(0,-114);ctx.lineTo(7,-109);ctx.lineTo(15,-125);ctx.stroke();
+  ctx.strokeStyle="#52483c";ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-38,-116);ctx.lineTo(-22,-63);ctx.lineTo(-15,-28);ctx.stroke();
+  ctx.fillStyle="#34363a";ctx.fillRect(-59,-50,118,8);ctx.fillStyle="#9d805d";ctx.fillRect(-3,-51,7,10);
+  ctx.strokeStyle="#25272a";ctx.lineWidth=17;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(50,-108);ctx.lineTo(67,-70);ctx.lineTo(84,-53);ctx.stroke();
+  ctx.fillStyle="#98765e";ctx.fillRect(77,-60,18,17);ctx.save();ctx.translate(88,-59);ctx.rotate(-.43);ctx.fillStyle=game.light?"#bda578":"#625c4c";ctx.fillRect(-6,-23,12,39);ctx.fillStyle="#ddd0a6";ctx.fillRect(-5,-28,10,6);ctx.restore();
+  ctx.fillStyle="#16171a";ctx.fillRect(-47,-17,39,34);ctx.fillRect(8,-17,39,34);ctx.restore();
+}
+
 function nearestItem() {
   let closest=null, best=1.45;
   for(const item of items){if(item.taken)continue; const d=distance(player,item), angle=Math.atan2(item.y-player.y,item.x-player.x);
@@ -224,24 +251,24 @@ function interact() {
   const item=nearestItem();
   if(!item){showToast("NOTHING WITHIN REACH",1.2);setNoise();return;}
   if(item.kind==="key"){
-    item.taken=true;game.keys.add(item.id);setNoise();showToast(`WARD KEY ${game.keys.size} / 5 — PICKED UP`);updateHud();
+    item.taken=true;game.keys.add(item.id);setNoise();showToast(`ROOM KEY ${game.keys.size} / 5 — PICKED UP`);updateHud();
   }else if(item.kind==="file"){
     item.taken=true;game.files.add(item.id);$("#note-title").textContent=item.title;$("#note-body").textContent=item.text;$("#note-card").hidden=false;setNoise(player.x,player.y,1.3);updateHud();
     if(item.id==="file-3") showToast("CODE ADDED TO YOUR NOTES: 0312",2.5);
   }else if(item.kind==="battery"){
     item.taken=true;game.battery=Math.min(100,game.battery+38);showToast("BATTERY PACK +38%",1.8);updateHud();
   }else if(item.kind==="breaker"){
-    if(!game.breaker){game.breaker=true;showToast("EMERGENCY TRANSMITTER ONLINE",2.5);setNoise(player.x,player.y,3);}
+    if(!game.breaker){game.breaker=true;showToast("LOBBY RADIO TRANSMITTER ONLINE",2.5);setNoise(player.x,player.y,3);}
     else showToast("TRANSMITTER IS ALREADY RUNNING",1.5);
   }else if(item.kind==="exit"){
-    if(game.keys.size<8){showToast(`EXIT LOCKED — ${8-game.keys.size} WARD KEYS STILL NEEDED`,2.6);return;}
-    if(!game.files.has("file-3")){showToast("KEYPAD NOTE: CHECK THE NIGHT NURSE'S RECORD",2.8);return;}
+    if(game.keys.size<5){showToast(`FRONT DOORS LOCKED — ${5-game.keys.size} ROOM KEYS STILL NEEDED`,2.6);return;}
+    if(!game.files.has("file-3")){showToast("KEYPAD NOTE: CHECK THE ROOM 312 HOUSEKEEPING NOTE",2.8);return;}
     openKeypad();
   }
 }
 function openKeypad(){
-  game.keypad=true;const note=$("#note-card");note.hidden=false;$("#note-title").textContent="SERVICE EXIT KEYPAD";
-  $("#note-body").textContent="Five ward keys accepted. Enter the four-digit code from Dr. Vale's note.\n\nCODE: [ _ _ _ _ ]\nType the four digits, then press Enter. Press Escape to close.";canvas.focus();
+  game.keypad=true;const note=$("#note-card");note.hidden=false;$("#note-title").textContent="GRAND LOBBY — FRONT DOOR";
+  $("#note-body").textContent="Five room keys accepted. Enter the four-digit code from the Room 312 housekeeping note.\n\nCODE: [ _ _ _ _ ]\nType the four digits, then press Enter. Press Escape to close.";canvas.focus();
 }
 function submitCode(value){
   if(!game.keypad)return;const code=value??"";game.keypad=false;$("#note-card").hidden=true;
@@ -269,10 +296,10 @@ function update(dt){
   if(!game.running)return;game.time+=dt;game.flicker=Math.max(0,game.flicker-dt);game.toastTimer-=dt;if(game.toastTimer<=0)$("#toast").classList.remove("show");
   movePlayer(dt);moveMonster(dt);
   if(game.light&&game.battery>0){game.battery=Math.max(0,game.battery-dt*.19);if(game.battery===0){game.light=false;showToast("THE FLASHLIGHT DIES",2.4);}}
-  game.eventTimer-=dt;if(game.eventTimer<=0){game.eventTimer=13+Math.random()*19;const event=Math.random();if(event<.42){game.flicker=.18+Math.random()*.34;showToast("THE LIGHTS FLICKER",1.2);}else if(event<.8){setNoise(monster.x+(Math.random()-.5)*2,monster.y+(Math.random()-.5)*2,1.4);showToast("A FOOTSTEP ECHOES DOWN THE HALL",1.8);}else{showToast("SOMETHING SCRATCHES INSIDE THE WALL",1.8);}}
+  game.eventTimer-=dt;if(game.eventTimer<=0){game.eventTimer=13+Math.random()*19;const event=Math.random();if(event<.42){game.flicker=.18+Math.random()*.34;showToast("THE CHANDELIERS FLICKER",1.2);}else if(event<.8){setNoise(monster.x+(Math.random()-.5)*2,monster.y+(Math.random()-.5)*2,1.4);showToast("A SERVICE LIFT CLUNKS SOMEWHERE BELOW",1.8);}else{showToast("SOMETHING SCRATCHES BEHIND THE WALLPAPER",1.8);}}
   const near=nearestItem();game.nearItem=near;const prompt=$("#prompt");
   if(game.keypad)prompt.textContent="TYPE CODE · ENTER CONFIRMS · ESC CLOSES";
-  else if(near){const labels={key:"E — TAKE WARD KEY",file:"E — READ PATIENT FILE",battery:"E — TAKE BATTERY",breaker:game.breaker?"EMERGENCY TRANSMITTER ONLINE":"E — RESTORE EMERGENCY POWER",exit:game.keys.size<8?`EXIT LOCKED · ${game.keys.size}/8 KEYS` : game.files.has("file-3")?"E — ENTER EXIT CODE":"FIND THE NURSE'S CODE NOTE"};prompt.textContent=labels[near.kind]||"E — INTERACT";}
+  else if(near){const labels={key:"E — TAKE ROOM KEY",file:"E — READ HOTEL RECORD",battery:"E — TAKE BATTERY",breaker:game.breaker?"LOBBY TRANSMITTER ONLINE":"E — RESTORE LOBBY TRANSMITTER",exit:game.keys.size<5?`FRONT DOORS LOCKED · ${game.keys.size}/5 KEYS` : game.files.has("file-3")?"E — ENTER EXIT CODE":"FIND THE ROOM 312 NOTE"};prompt.textContent=labels[near.kind]||"E — INTERACT";}
   else prompt.textContent="";prompt.classList.toggle("show",!!prompt.textContent);
   game.hudTimer-=dt;if(game.hudTimer<=0){updateHud();game.hudTimer=.2;}
 }
