@@ -14,7 +14,7 @@ Open `index.html` in a desktop or mobile browser. Select **Enter the Hospital** 
 | Flashlight | F | Light button |
 | Run / crouch | Shift / C | Run / Crouch buttons |
 
-Find five ward keys, read Dr. Vale's note for the exit code, and reach the service exit. Patient records reveal what happened. The emergency transmitter in the south east ward unlocks the hidden ending when all four records are found. Keep the flashlight battery for dark rooms; running and walking can attract the creature.
+Find eight ward keys, read Dr. Vale's note for the exit code, and reach the service exit. Patient records reveal what happened. The emergency transmitter in the south east ward unlocks the hidden ending when all four records are found. Keep the flashlight battery for dark rooms; running and walking can attract the creature. Crouch to make less noise and reduce how far away the creature can spot you. Fallen cabinets and collapsed passages break up long sightlines, but the creature can navigate around them.
 
 ## Prototype scope
 

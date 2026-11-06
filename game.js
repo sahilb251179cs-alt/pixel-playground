@@ -13,7 +13,8 @@ const map = buildMap();
 const items = [
   { id: "key-a", kind: "key", x: 3.5, y: 3.5 }, { id: "key-b", kind: "key", x: 7.5, y: 7.5 },
   { id: "key-c", kind: "key", x: 11.5, y: 3.5 }, { id: "key-d", kind: "key", x: 15.5, y: 11.5 },
-  { id: "key-e", kind: "key", x: 19.5, y: 7.5 },
+  { id: "key-e", kind: "key", x: 19.5, y: 7.5 }, { id: "key-f", kind: "key", x: 11.5, y: 11.5 },
+  { id: "key-g", kind: "key", x: 7.5, y: 11.5 }, { id: "key-h", kind: "key", x: 19.5, y: 5.5 },
   { id: "file-1", kind: "file", x: 7.5, y: 3.5, title: "PATIENT 04 — INTAKE", text: "They brought him in after the east wing fire. He kept asking for his daughter. There is no daughter listed in his file." },
   { id: "file-2", kind: "file", x: 15.5, y: 3.5, title: "NURSE'S REPORT — 11/02", text: "The night staff say the intercom calls their names from rooms that have been sealed for years. Administration says the wiring is dead." },
   { id: "file-3", kind: "file", x: 3.5, y: 11.5, title: "PERSONAL NOTE — DR. VALE", text: "I did not turn off the lights. I locked Ward C. The four digits are the date we opened the ward: 0312. Please do not let them reopen it." },
@@ -43,6 +44,9 @@ function buildMap() {
   // A records room and the basement approach make two quiet side branches.
   for (let x = 2; x <= 4; x++) grid[14][x] = ".";
   grid[14][3] = ".";
+  // Fallen cabinets and collapsed walls break long sightlines. The ward loops
+  // still connect around them, so both the player and creature can navigate.
+  for (const [x, y] of [[3,1],[7,5],[11,9],[15,13],[19,15],[3,9],[7,13],[11,5],[15,9],[19,1]]) grid[y][x] = "#";
   return grid;
 }
 
@@ -62,12 +66,12 @@ function showToast(message, duration = 2.4) {
 }
 function updateHud() {
   $("#clue-status").textContent = `Records found ${game.files.size} / 4`;
-  $("#keys").innerHTML = Array.from({ length: 5 }, (_, i) => `<span class="key-token ${game.keys.size > i ? "found" : ""}">${game.keys.size > i ? "✦" : "·"}</span>`).join("");
+  $("#keys").innerHTML = Array.from({ length: 8 }, (_, i) => `<span class="key-token ${game.keys.size > i ? "found" : ""}">${game.keys.size > i ? "✦" : "·"}</span>`).join("");
   const bar = $("#battery-bar"); bar.style.width = `${game.battery}%`; bar.classList.toggle("low", game.battery < 25);
   $("#battery-text").textContent = `${Math.ceil(game.battery)}%`;
   $("#noise-text").textContent = game.time < game.noiseUntil ? (game.playerRunning ? "LOUD" : "SOUND HEARD") : "QUIET";
   $("#noise-indicator").classList.toggle("loud", game.time < game.noiseUntil);
-  const objective = game.keys.size < 5 ? "Find the five ward keys" : game.files.size < 4 ? "Find the exit — uncover the truth" : "Reach the exit. Decide what leaves with you.";
+  const objective = game.keys.size < 8 ? "Find the eight ward keys" : game.files.size < 4 ? "Find the exit — uncover the truth" : "Reach the exit. Decide what leaves with you.";
   $("#objective").textContent = objective;
 }
 function startGame() {
@@ -85,7 +89,7 @@ function finish(kind) {
     survivor: ["SURVIVOR ENDING", "YOU MADE IT OUT", "You escaped with the keys. Behind you, the hospital swallowed the answers."],
     truth: ["THE TRUTH ENDING", "THEY WERE NEVER PATIENTS", "You carried every record into the rain. By sunrise, the story was everywhere."],
     hidden: ["HIDDEN ENDING", "THE LAST TRANSMISSION", "You restored the emergency transmitter. A voice answered from inside Ward C."],
-    trapped: ["THE DOORS ARE LOCKED", "FIVE KEYS REQUIRED", "Find every ward key before trying the service exit."]
+    trapped: ["THE DOORS ARE LOCKED", "EIGHT KEYS REQUIRED", "Find every ward key before trying the service exit."]
   };
   const ending = endings[kind]; $("#end-kicker").textContent = ending[0]; $("#end-title").textContent = ending[1]; $("#end-copy").textContent = ending[2];
   titleCard.hidden = true; endCard.hidden = false; restartButton.focus();
@@ -110,11 +114,13 @@ function findPath(sx, sy, tx, ty) {
   return result.reverse();
 }
 function moveMonster(dt) {
-  const d = distance(player, monster), canSee = d < (game.light ? 9 : 4.2) && lineClear(player.x, player.y, monster.x, monster.y);
+  const d = distance(player, monster), sightRange = player.crouching ? (game.light ? 3.2 : 1.8) : game.light ? 9 : 4.2;
+  const canSee = d < sightRange && lineClear(player.x, player.y, monster.x, monster.y);
   const heard = game.time < game.noiseUntil && game.noisePos && distance(monster, game.noisePos) < (game.playerRunning ? 10 : player.crouching ? 1.1 : 5.5);
   if (canSee) { if (monster.state !== "chase") showToast("IT SAW THE LIGHT", 1.4); monster.state = "chase"; monster.search = 5; monster.wander = { x: player.x, y: player.y }; }
   else if (heard) { if (monster.state !== "chase") monster.state = "investigate"; monster.wander = { ...game.noisePos }; monster.search = 4; }
   else if (monster.state === "chase") { monster.state = "search"; monster.search = 5; monster.wander = { x: player.x, y: player.y }; }
+  else if (monster.state === "investigate" && !monster.path.length && monster.wander && distance(monster, monster.wander) < .8) { monster.state = "search"; monster.search = 3; monster.repath = 0; }
   monster.repath -= dt;
   if (monster.state === "search") { monster.search -= dt; if (monster.search <= 0) { monster.state = "patrol"; monster.path = []; } }
   if (monster.state === "patrol" && (!monster.path.length || monster.repath <= 0)) {
@@ -228,7 +234,7 @@ function interact() {
     if(!game.breaker){game.breaker=true;showToast("EMERGENCY TRANSMITTER ONLINE",2.5);setNoise(player.x,player.y,3);}
     else showToast("TRANSMITTER IS ALREADY RUNNING",1.5);
   }else if(item.kind==="exit"){
-    if(game.keys.size<5){showToast(`EXIT LOCKED — ${5-game.keys.size} WARD KEYS STILL NEEDED`,2.6);return;}
+    if(game.keys.size<8){showToast(`EXIT LOCKED — ${8-game.keys.size} WARD KEYS STILL NEEDED`,2.6);return;}
     if(!game.files.has("file-3")){showToast("KEYPAD NOTE: CHECK THE NIGHT NURSE'S RECORD",2.8);return;}
     openKeypad();
   }
@@ -266,7 +272,7 @@ function update(dt){
   game.eventTimer-=dt;if(game.eventTimer<=0){game.eventTimer=13+Math.random()*19;const event=Math.random();if(event<.42){game.flicker=.18+Math.random()*.34;showToast("THE LIGHTS FLICKER",1.2);}else if(event<.8){setNoise(monster.x+(Math.random()-.5)*2,monster.y+(Math.random()-.5)*2,1.4);showToast("A FOOTSTEP ECHOES DOWN THE HALL",1.8);}else{showToast("SOMETHING SCRATCHES INSIDE THE WALL",1.8);}}
   const near=nearestItem();game.nearItem=near;const prompt=$("#prompt");
   if(game.keypad)prompt.textContent="TYPE CODE · ENTER CONFIRMS · ESC CLOSES";
-  else if(near){const labels={key:"E — TAKE WARD KEY",file:"E — READ PATIENT FILE",battery:"E — TAKE BATTERY",breaker:game.breaker?"EMERGENCY TRANSMITTER ONLINE":"E — RESTORE EMERGENCY POWER",exit:game.keys.size<5?`EXIT LOCKED · ${game.keys.size}/5 KEYS` : game.files.has("file-3")?"E — ENTER EXIT CODE":"FIND THE NURSE'S CODE NOTE"};prompt.textContent=labels[near.kind]||"E — INTERACT";}
+  else if(near){const labels={key:"E — TAKE WARD KEY",file:"E — READ PATIENT FILE",battery:"E — TAKE BATTERY",breaker:game.breaker?"EMERGENCY TRANSMITTER ONLINE":"E — RESTORE EMERGENCY POWER",exit:game.keys.size<8?`EXIT LOCKED · ${game.keys.size}/8 KEYS` : game.files.has("file-3")?"E — ENTER EXIT CODE":"FIND THE NURSE'S CODE NOTE"};prompt.textContent=labels[near.kind]||"E — INTERACT";}
   else prompt.textContent="";prompt.classList.toggle("show",!!prompt.textContent);
   game.hudTimer-=dt;if(game.hudTimer<=0){updateHud();game.hudTimer=.2;}
 }
