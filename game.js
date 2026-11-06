@@ -143,6 +143,7 @@ function update(dt) {
   }
   if (collectible && overlaps(player, collectible)) {
     score += 1;
+    player.size += 1;
     if (score > best) {
       best = score;
       try {
